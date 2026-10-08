@@ -1,0 +1,40 @@
+name: Update exchange rates
+
+on:
+  schedule:
+    # three times a day (UTC): 00:20, 08:20, 16:20
+    - cron: "20 0,8,16 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-rates
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch rates
+        run: python scripts/update_rates.py
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- rates.json; then
+            echo "No change"
+            exit 0
+          fi
+          git config user.name "ginti-rates-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rates.json
+          git commit -m "rates: $(python -c "import json;print(json.load(open('rates.json'))['date'])")"
+          git push
